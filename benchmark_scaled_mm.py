@@ -2,6 +2,9 @@ import torch
 import torch.nn.functional as F
 import time
 
+torch.set_grad_enabled(False)
+
+# @torch.compile(mode="reduce-overhead")
 def to_float8(x, dtype=torch.float8_e4m3fn):
     finfo = torch.finfo(dtype)
     scale = finfo.max / x.abs().max().clamp(min=1e-12)
@@ -12,15 +15,16 @@ def to_float8(x, dtype=torch.float8_e4m3fn):
 def benchmark_fp8_mm(m, n, k, dtype=torch.float16, qdtype=torch.float8_e4m3fn, num_iters=1000):
     # create test inputs
     x = torch.randn((m, k), dtype=dtype, device='cuda')
-    # Note: cuBLASLt float8 matmul requires column major for the second argument
-    w = torch.randn((n, k), dtype=dtype, device='cuda').t()
+    w = torch.randn((n, k), dtype=dtype, device='cuda')
 
     x_fp8, x_inv_s = to_float8(x, dtype=qdtype)
     w_fp8, w_inv_s = to_float8(w, dtype=qdtype)
+    # Note: cuBLASLt float8 matmul requires column major for the second argument
+    w_fp8 = w_fp8.t()
 
     # Warmup
     for _ in range(10):
-        y_fp16 = torch.mm(x, w)
+        y_fp16 = F.linear(x, w)
         y, _ = torch._scaled_mm(x_fp8, w_fp8, out_dtype=dtype, scale_a=x_inv_s, scale_b=w_inv_s)
     torch.cuda.synchronize()
     # "Cool down" the GPU in between benchmarks to avoid throttling
@@ -48,7 +52,7 @@ def benchmark_fp8_mm(m, n, k, dtype=torch.float16, qdtype=torch.float8_e4m3fn, n
     # Benchmark fp16 matmul
     start_time = time.perf_counter()
     for _ in range(num_iters):
-        y_fp16 = torch.mm(x, w)
+        y_fp16 = F.linear(x, w)
     torch.cuda.synchronize()
     fp16_time = time.perf_counter() - start_time
     
@@ -68,7 +72,8 @@ if __name__ == "__main__":
         (4096, 22016),
         (11008, 4096),
     ]
-    batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    # batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    batch_sizes = [1] + [i for i in range(16, 257, 16)]
     # batch_sizes = [i+1 for i in range(256)]
     num_iters = 10000
 
