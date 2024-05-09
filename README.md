@@ -3,6 +3,8 @@ Scripts to compare FP8 weight and activation quantization performance against FP
 
 The below numbers were collected on an NVIDIA RTX 4090 using `torch==2.4.0.dev20240417+cu121`
 
+Raw numbers: https://docs.google.com/spreadsheets/d/1X-N8h8_O-Z-S7tN5WRkAXXKkhCEniJciUpEzaUaksqs/edit?usp=sharing
+
 ![image](https://github.com/mgoin/torch-fp8/assets/3195154/fb769578-5539-4c37-93cb-e8f044b4f958)
 
 Output similarity:
